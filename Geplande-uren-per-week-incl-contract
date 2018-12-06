@@ -1,0 +1,56 @@
+SET datefirst 1 
+
+SELECT Datepart(yyyy, mev.valid_from)                                 jaar, 
+       Datepart(ww, mev.valid_from)                                   week, 
+       e.identificationno 
+       mederwerkernr, 
+       e.firstname + ' ' + e.NAME                                     medewerker 
+       , 
+       Sum(mev.duration / 60) 
+       minuten, 
+       Replace(Cast(Sum(mev.duration / 60) / 60.0 AS CHAR), '.', ',') uren, 
+       dr.fixedhoursperweek                                           contract 
+FROM   moves_employees me 
+       INNER JOIN employees e 
+               ON me.external_id = e.objectid 
+       INNER JOIN moves_shift_assignments msa 
+               ON msa.employee_id = me.objectid 
+       INNER JOIN moves_shifts ms 
+               ON ms.timeline_id = msa.timeline_shift_id 
+       INNER JOIN moves_events mev 
+               ON mev.container_id = ms.objectid 
+                  AND mev.container_type = 'Shift' 
+                  AND msa.date = mev.valid_from 
+       INNER JOIN moves_clients mc 
+               ON mev.client_id = mc.objectid 
+       LEFT JOIN (
+				SELECT e.objectid employeeobjectid, 
+					   e.identificationno, 
+					   e.contractid, 
+					   CASE 
+						 WHEN Datepart(dw, c.begindate) <> '1' THEN 
+						 Dateadd(week, Datediff(week, 
+									   0, 
+									   c.begindate), 7) 
+						 ELSE c.begindate 
+					   END                                                    begindate, 
+					   Isnull(CONVERT(VARCHAR, c.enddate, 120), '2099-12-31') enddate, 
+					   c.fixedhoursperweek, 
+					   c.varhoursperweek, 
+					   ct.code 
+				FROM   employees e 
+					   INNER JOIN contracts c 
+							   ON e.objectid = c.employeeobjectid 
+					   LEFT JOIN contract_types ct 
+							  ON c.contracttypeobjectid = ct.objectid)
+				dr ON dr.employeeobjectid = e.objectid 
+					AND dateadd (week, datepart(ww, mev.valid_from), dateadd (year, datepart(yyyy, mev.valid_from)-1900, 0)) - 4 - datepart(dw, dateadd (week, datepart(ww, mev.valid_from), dateadd (year, datepart(yyyy, mev.valid_from)-1900, 0)) - 4) + 1 BETWEEN dr.begindate AND dr.enddate
+WHERE  mev.filtered = 0 
+       AND mev.deleted = 0 
+GROUP  BY Datepart(yyyy, mev.valid_from), 
+          Datepart(ww, mev.valid_from), 
+          e.identificationno, 
+          e.firstname + ' ' + e.NAME, 
+          dr.fixedhoursperweek 
+ORDER  BY Datepart(yyyy, mev.valid_from), 
+          Datepart(ww, mev.valid_from) 
