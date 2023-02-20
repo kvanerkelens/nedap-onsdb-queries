@@ -1,0 +1,34 @@
+SET datefirst 1 
+
+SELECT Datepart(yyyy, mev.valid_from)                                  jaar, 
+       Datepart(ww, mev.valid_from)                                    week, 
+       Datepart(dw, Getdate()) 
+       dagvandeweek, 
+       Cast(mev.valid_from AS DATE)                                    datum, 
+       e.identificationno 
+       mederwerkernr, 
+       e.firstname + ' ' + e.NAME 
+       medewerker, 
+       mc.code                                                         clientnr, 
+       mc.birth_name                                                   client, 
+       mev.[order], 
+       mev.duration / 60                                               minuten, 
+       CONVERT(VARCHAR(5), Dateadd(minute, mev.duration / 60, 0), 114) 'uu:mm' 
+FROM   moves_employees me 
+       INNER JOIN employees e 
+               ON me.external_id = e.objectid 
+       INNER JOIN moves_shift_assignments msa 
+               ON msa.employee_id = me.objectid 
+       INNER JOIN moves_shifts ms 
+               ON ms.timeline_id = msa.timeline_shift_id 
+       INNER JOIN moves_events mev 
+               ON mev.container_id = ms.objectid 
+                  AND mev.container_type = 'Shift' 
+                  AND msa.date = mev.valid_from 
+       INNER JOIN moves_clients mc 
+               ON mev.client_id = mc.objectid 
+WHERE  mev.filtered = 0 
+       AND mev.deleted = 0 
+ORDER  BY Datepart(yyyy, mev.valid_from), 
+          Datepart(ww, mev.valid_from), 
+          e.identificationno 
